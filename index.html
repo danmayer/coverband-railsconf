@@ -82,6 +82,22 @@
 
     <section class="slide">
       <h2>Stats Instrumentation</h2>
+      <p>
+        <ul>
+	  <li>Render Tracking: partials, templates, and layouts</li>
+      	  <li>Email Tracking: Are you still sending all your mailers?</li>
+	  <li>Event Tracking: Still trickering all your background
+      events, are they all failing? </li>
+          <li>Deprecation Tracking: one off trackers to check code
+      branches, or other hard to verify code</li>
+          <li>Translation Tracking: How many translation keys are you
+      loading in memory wasting space and never using</li>
+        </ul>
+      </p>
+    </section>
+
+    <section class="slide">
+      <h2>Stats Instrumentation</h2>
       <pre>
 ActiveSupport::Notifications.subscribe /render_partial.action_view|render_template.action_view/ do |name, start, finish, id, payload| 
   RenderTracker.track_template(name, start, finish, id, payload) unless name.include?('!') 
