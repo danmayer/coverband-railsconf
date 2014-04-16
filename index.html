@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <meta name="viewport" content="width=1024, user-scalable=no">
+
+  <title>Production Code Analysis</title>
+
+  <!-- Required stylesheet -->
+  <link rel="stylesheet" media="screen" href="core/deck.core.css">
+
+  <!-- Extension CSS files go here. Remove or add as needed. -->
+  <link rel="stylesheet" media="screen" href="extensions/goto/deck.goto.css">
+  <link rel="stylesheet" media="screen" href="extensions/menu/deck.menu.css">
+  <link rel="stylesheet" media="screen" href="extensions/status/deck.status.css">
+  <link rel="stylesheet" media="screen" href="extensions/scale/deck.scale.css">
+
+  <!-- Style theme. More available in /themes/style/ or create your own. -->
+  <link rel="stylesheet" media="screen" href="themes/style/ls.css">
+
+  <!-- Transition theme. More available in /themes/transition/ or create your own. -->
+  <link rel="stylesheet" media="screen" href="themes/transition/horizontal-slide.css">
+
+  <!-- Basic black and white print styles -->
+  <link rel="stylesheet" media="print" href="core/print.css">
+
+  <!-- Required Modernizr file -->
+  <script src="modernizr.custom.js"></script>
+</head>
+<body>
+  <div class="deck-container">
+
+    <div class="header">
+      &nbsp;
+    </div>
+    <!-- Begin slides. Just make elements with a class of slide. -->
+
+    <section class="slide">
+      <h1>Production Code Analysis</h1>
+      <p>
+        <ul>
+	  <li>
+	    Dan Mayer
+	    <ul>
+	      <li><a href="http://mayerdan.com">http://mayerdan.com</a></li>
+	      <li><a href="http://github.com/danmayer">github: @danmayer</a></li>
+	      <li><a href="http://twitter.com/danmayer">twitter: @danmayer</a></li>
+	    </ul>
+	  </li>
+	  <li><a href="http://livingsocial.com">LivingSocial</a> (We're hiring)</li>
+        </ul>
+      </p>
+    </section>
+
+    <section class="slide">
+      <h2>How Dead Code Sticks Around</h2>
+      <p>
+        <ul>
+	  <li>Large Teams aren't good at communicating what is no
+      longer needed</li>
+      	  <li>AB tests, never removing a loser</li>
+	  <li>Deprecation of old endpoints takes time</li>
+	  <li>There are tests, but it is never used in prod</li>
+        </ul>
+      </p>
+    </section>
+
+    <section class="slide">
+      <h2>Finding Dead Code</h2>
+      <p>
+        <ul>
+	  <li>Use Logs</li>
+      	  <li>Use NewRelic or Appneta (formerly Tracelytics)</li>
+	  <li>Stats Instrumentation</li>
+	  <li>Production Code Coverage</li>
+	  <li>At LivingSocial using stats and Coverband, we have
+      removed 10s of thousands of lines app of code.</li>
+        </ul>
+      </p>
+    </section>
+
+    <section class="slide">
+      <h2>Stats Instrumentation</h2>
+      <pre>
+ActiveSupport::Notifications.subscribe /render_partial.action_view|render_template.action_view/ do |name, start, finish, id, payload| 
+  RenderTracker.track_template(name, start, finish, id, payload) unless name.include?('!') 
+end
+
+class RenderTracker
+  
+  def self.track_template(name, start, finish, id, payload)
+    if file = payload[:identifier]
+      Statsd.increment file
+      Rails.logger.info "[RenderTracker] file: #{file}"
+    end
+    if layout = payload[:layout]
+      Statsd.increment layout
+      Rails.logger.info "[RenderTracker] layout: #{layout}"
+    end
+  end
+
+end
+      </pre>
+    </section>
+
+    <section class="slide">
+      <h2>Production Code Coverage: Coverband</h2>
+      <p>
+        <ul>
+	  <li>Based on `set_trace_func`</li>
+      	  <li>It would be better to be based on `Coverage` but there is a bug in Ruby</li>
+	  <li>(After talks <a href="http://twitter.com/mwrc">@MWRC</a> I might try to patch Ruby)</li>
+	  <li>Performance Cost limited by sampling</li>
+	  <li><a href="https://github.com/danmayer/coverband">github.com/danmayer/coverband</a></li>
+        </ul>
+      </p>
+    </section>
+
+    <section class="slide ls">
+      <h1>Thanks</h1>
+      <p>
+        <ul>
+	  <li>
+	    Dan Mayer
+	    <ul>
+	      <li><a href="http://mayerdan.com">http://mayerdan.com</a></li>
+	      <li><a href="http://github.com/danmayer">github: @danmayer</a></li>
+	      <li><a href="http://twitter.com/danmayer">twitter: @danmayer</a></li>
+	    </ul>
+	  </li>
+	  <li><a href="http://livingsocial.com">LivingSocial</a> (We're hiring)</li>
+        </ul>
+      </p>
+    </section>
+
+    <!-- End slides. -->
+
+    <!-- Begin extension snippets. Add or remove as needed. -->
+
+    <!-- deck.status snippet -->
+    <p class="deck-status" aria-role="status">
+      <span class="deck-status-current"></span>
+      /
+      <span class="deck-status-total"></span>
+    </p>
+
+    <!-- deck.goto snippet -->
+    <form action="." method="get" class="goto-form">
+      <label for="goto-slide">Go to slide:</label>
+      <input type="text" name="slidenum" id="goto-slide" list="goto-datalist">
+      <datalist id="goto-datalist"></datalist>
+      <input type="submit" value="Go">
+    </form>
+
+    <!-- End extension snippets. -->
+  </div>
+
+<!-- Required JS files. -->
+<script src="jquery.min.js"></script>
+<script src="core/deck.core.js"></script>
+
+<!-- Extension JS files. Add or remove as needed. -->
+<script src="extensions/menu/deck.menu.js"></script>
+<script src="extensions/goto/deck.goto.js"></script>
+<script src="extensions/status/deck.status.js"></script>
+<script src="extensions/navigation/deck.navigation.js"></script>
+<script src="extensions/scale/deck.scale.js"></script>
+
+<!-- Initialize the deck. You can put this in an external file if desired. -->
+<script>
+  $(function() {
+    $.deck('.slide');
+  });
+</script>
+</body>
+</html>
