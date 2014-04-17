@@ -57,9 +57,10 @@
       <h2>How Dead Code Sticks Around</h2>
       <p>
         <ul>
-	  <li>Large Teams aren't good at communicating what is no
+	  <li>Large teams aren't good at communicating what is no
       longer needed</li>
       	  <li>AB tests, never removing a loser</li>
+	  <li>One offs that are irrelevant over time</li>
 	  <li>Deprecation of old endpoints takes time</li>
 	  <li>There are tests, but it is never used in prod</li>
         </ul>
@@ -70,10 +71,10 @@
       <h2>Finding Dead Code</h2>
       <p>
         <ul>
-	  <li>Use Logs</li>
       	  <li>Use NewRelic or Appneta (formerly Tracelytics)</li>
 	  <li>Stats Instrumentation</li>
 	  <li>Production Code Coverage</li>
+	  <li>Use Logs</li>
 	  <li>At LivingSocial using stats and Coverband, we have
       removed 10s of thousands of lines app of code.</li>
         </ul>
@@ -81,26 +82,155 @@
     </section>
 
     <section class="slide">
+      <h2>Using 3rd Party tool (NewRelic)</h2>
+      <p>Easiest way, look at tracking last 7 days, has it been hit</p>
+      <p>Not looking for a specific endpoint, check everything</p>
+    </section>
+
+    <section class="slide">
       <h2>Stats Instrumentation</h2>
+      <p>
+        <ul>
+      	  <li>Background Events Executed</li>
+	  <li>Emails Sent</li>
+	  <li>Views Rendered</li>
+	  <li>One Off Trackers</li>
+	  <li>Production Performance Comparisons</li>
+	  <li>Translations Usage</li>
+        </ul>
+      </p>
+    </section>
+
+    <section class="slide">
+      <h2>Stats Instrumentation: Background Events Executed</h2>
+      <pre>
+# Example for Resque background jobs
+STATSD = Statsd.new(host, port).tap{|sd| sd.namespace = 'app_name'}
+
+def before_perform(*args)
+  STATSD.increment "resque.processed.#{get_event_name}"
+end
+
+def after_perform(*args)
+  STATSD.increment "resque.completed.#{get_event_name}"
+end
+      </pre>
+    </section>
+
+    <section class="slide">
+      <h2>Stats Instrumentation: Emails Sent</h2>
+      <pre>
+# Example for ActionMailer
+STATSD = Statsd.new(host, port).tap{|sd| sd.namespace = 'app_name'}
+
+class BaseMailer < ActionMailer::Base
+  def initialize(method_name=nil, *parameters)
+    STATSD.increment "mailers.base_mailer.#{method_name}" if method_name
+    #...
+    super(method_name, *parameters)
+  end
+end
+      </pre>
+    </section>
+	
+    <section class="slide">
+      <h2>Stats Instrumentation: Views Rendered</h2>
       <pre>
 ActiveSupport::Notifications.subscribe /render_partial.action_view|render_template.action_view/ do |name, start, finish, id, payload| 
   RenderTracker.track_template(name, start, finish, id, payload) unless name.include?('!') 
 end
 
 class RenderTracker
-  
   def self.track_template(name, start, finish, id, payload)
     if file = payload[:identifier]
-      Statsd.increment file
+      Statsd.increment "views.#{file}"
       Rails.logger.info "[RenderTracker] file: #{file}"
     end
     if layout = payload[:layout]
-      Statsd.increment layout
+      Statsd.increment "views.#{layout}"
       Rails.logger.info "[RenderTracker] layout: #{layout}"
     end
   end
-
 end
+      </pre>
+    </section>
+
+    <section class="slide">
+      <h2>Stats Instrumentation: Views Rendered (Part 2)</h2>
+      <p>We made a gem for that and some helpers: <a href="https://github.com/livingsocial/flatfoot">Flatfoot</a>
+      <pre>
+FLATFOOT = Flatfoot::Tracker.new(Redis.new)
+
+ActiveSupport::Notifications.subscribe /render_partial.action_view|render_template.action_view/ do |name, start, finish, id, payload|
+  FLATFOOT.track_views(name, start, finish, id, payload) unless name.include?('!') 
+end
+
+FLATFOOT.used_views
+=> ["app/views/home/index.html.erb",...
+
+FLATFOOT.unused_views
+=> ["app/views/something/_old_partial.html.erb",...
+      </pre>
+    </section>
+
+    <section class="slide">
+      <h2>Stats Instrumentation: One Off Trackers</h2>
+      <pre>
+# Example Tracking a code path
+STATSD = Statsd.new(host, port).tap{|sd| sd.namespace = 'app_name'}
+
+class HomeController < ApplicationController
+
+  def show
+    if request.xhr?
+       #some weird logic
+       STATSD.increment "deprecated.home_controller.show.xhr"
+     end
+    respond_to do |format|
+        format.html { STATSD.increment "deprecated.home_controller.show.html" }
+        format.json { STATSD.increment "deprecated.home_controller.show.json" }
+        format.mobile { STATSD.increment "deprecated.home_controller.show.mobile" }
+    end
+  end
+end
+      </pre>
+    </section>
+
+    <section class="slide">
+      <h2>Stats Instrumentation: Production Performance Comparisons</h2>
+      <p>shout out to <a href="https://twitter.com/ubermajestix">@ubermajestix (Tyler Montgomery)</a> for showing me the timing trick</a>
+      <pre>
+STATSD = Statsd.new(host, port).tap{|sd| sd.namespace = 'app_name'}
+
+def example_html_stripping_method
+  strip_method = rand(2)&1 == 0 ? 'nokogiri' : 'strip_tags'
+  desc = STATSD.time("application_helper.example_html_stripping_method.#{strip_method}") do
+    if strip_method == 'strip_tags'
+      strip_tags(desc_raw).gsub(/^\s+/,'').gsub(/\s+$/,'')
+    else
+      Nokogiri::HTML.parse(desc_raw).text.strip
+    end
+  end
+  #...
+end
+      </pre>
+    </section>
+
+    <section class="slide">
+      <h2>Stats Instrumentation: Translations Usage</h2>
+      <p>We made a gem for that and some helpers: <a href="https://github.com/livingsocial/flatfoot">Flatfoot</a>
+      <pre>
+FLATFOOT = Flatfoot::Tracker.new(Redis.new)
+
+ActiveSupport::Notifications.subscribe /render_partial.action_view|render_template.action_view/ do |name, start, finish, id, payload|
+  FLATFOOT.track_views(name, start, finish, id, payload) unless name.include?('!') 
+end
+
+FLATFOOT.used_views
+=> ["app/views/home/index.html.erb",...
+
+FLATFOOT.unused_views
+=> ["app/views/something/_old_partial.html.erb",...
       </pre>
     </section>
 
@@ -110,8 +240,21 @@ end
         <ul>
 	  <li>Based on `set_trace_func`</li>
       	  <li>It would be better to be based on `Coverage` but there is a bug in Ruby</li>
-	  <li>(After talks <a href="http://twitter.com/mwrc">@MWRC</a> I might try to patch Ruby)</li>
-	  <li>Performance Cost limited by sampling</li>
+	  <li>(Looking for C help, so I can try to patch Ruby)</li>
+	  <li>Performance hit reduced by sampling</li>
+	  <li><a href="https://github.com/danmayer/coverband">github.com/danmayer/coverband</a></li>
+        </ul>
+      </p>
+    </section>
+
+    <section class="slide">
+      <h2>Logs</h2>
+      <p>
+        <ul>
+	  <li>Based on `set_trace_func`</li>
+      	  <li>It would be better to be based on `Coverage` but there is a bug in Ruby</li>
+	  <li>(Looking for C help, so I can try to patch Ruby)</li>
+	  <li>Performance hit reduced by sampling</li>
 	  <li><a href="https://github.com/danmayer/coverband">github.com/danmayer/coverband</a></li>
         </ul>
       </p>
