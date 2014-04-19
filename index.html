@@ -48,7 +48,7 @@
 	      <li><a href="http://twitter.com/danmayer">twitter: @danmayer</a></li>
 	    </ul>
 	  </li>
-	  <li><a href="http://livingsocial.com">LivingSocial</a> (We're hiring)</li>
+	  <li><a href="http://livingsocial.com">LivingSocial</a></li>
         </ul>
       </p>
     </section>
@@ -221,19 +221,25 @@ end
 
     <section class="slide">
       <h2>Stats Instrumentation: Translations Usage</h2>
-      <p>We made a gem for that and some helpers: <a href="https://github.com/livingsocial/flatfoot">Flatfoot</a>
+      <p>We made a gem for that <a href="https://twitter.com/the_chrismo">@Chrismo (Chris Morris)</a> built: <a href="https://github.com/livingsocial/humperdink">Humperdink</a>
       <pre>
-FLATFOOT = Flatfoot::Tracker.new(Redis.new)
+class KeyTracker
+  def initialize(redis, key)
+    redis_set = Humperdink::RedisDirtySet.new(:redis => redis, :key => key, :max_dirty_items => 9)
+    @tracker = Humperdink::Tracker.new(redis_set, :enabled => true)
+  end
 
-ActiveSupport::Notifications.subscribe /render_partial.action_view|render_template.action_view/ do |name, start, finish, id, payload|
-  FLATFOOT.track_views(name, start, finish, id, payload) unless name.include?('!') 
-end
-
-FLATFOOT.used_views
-=> ["app/views/home/index.html.erb",...
-
-FLATFOOT.unused_views
-=> ["app/views/something/_old_partial.html.erb",...
+  def on_translate(locale, key, options = {})
+    begin
+      if @tracker.tracker_enabled
+        requested_key = normalize_requested_key(key, options)
+        @tracker.track(requested_key)
+      end
+    rescue => e
+      @tracker.shutdown(e)
+    end
+  end
+...
       </pre>
     </section>
 
@@ -243,11 +249,62 @@ FLATFOOT.unused_views
         <ul>
 	  <li>Based on `set_trace_func`</li>
       	  <li>It would be better to be based on `Coverage` but there is a bug in Ruby</li>
-	  <li>(Looking for C help, so I can try to patch Ruby)</li>
+	  <li>(Looking for C help, so I can try to patch Ruby, anyone
+      got those skills?)</li>
 	  <li>Performance hit reduced by sampling</li>
-	  <li><a href="https://github.com/danmayer/coverband">github.com/danmayer/coverband</a></li>
+	  <li>
+	    <a href="https://github.com/danmayer/coverband">github.com/danmayer/coverband</a>
+	  </li>
+          <li>Example Output:
+	    <a href="./examples/coverage/index.html" target="blank">churn-site coverage</a>
+	  </li>
         </ul>
       </p>
+    </section>
+
+   <section class="slide">
+      <h2>Production Code Coverage: Coverband</h2>
+      <pre>
+require 'json'
+baseline = Coverband.parse_baseline
+
+Coverband.configure do |config|
+  config.root              = Dir.pwd
+  if defined? Redis
+    config.redis   = Redis.new(:host => 'redis.host.com', :port => 49182)
+  end
+  config.coverage_baseline = baseline
+  config.root_paths        = ['/app/']
+  config.ignore            = ['vendor']
+  # Rails lazy loads code. Measuring during that is slow
+  # This ignores first 15 requests
+  config.startup_delay     = Rails.env.production? ? 15 : 1
+  config.percentage        = Rails.env.production? ? 20.0 : 90.0
+  if defined? Statsd
+    config.stats           = Statsd.new('statsd.host.com', 8125)
+  end
+  config.verbose           = Rails.env.production? ? false: true
+end
+      </pre>
+    </section>
+
+    <section class="slide">
+      <h2>Production Code Coverage: Coverband</h2>
+      <pre>
+#configure rake
+require 'coverband'
+Coverband.configure
+require 'coverband/tasks'
+
+#setup middleware in `config.ru`
+require File.dirname(__FILE__) + '/config/environment'
+
+require 'coverband'
+Coverband.configure
+
+use Coverband::Middleware
+run ActionController::Dispatcher.new
+      </pre>
     </section>
 
     <section class="slide">
@@ -275,7 +332,10 @@ FLATFOOT.unused_views
 	      <li><a href="http://twitter.com/danmayer">twitter: @danmayer</a></li>
 	    </ul>
 	  </li>
-	  <li><a href="http://livingsocial.com">LivingSocial</a> (We're hiring)</li>
+	  <li><a href="http://livingsocial.com">LivingSocial</a>
+      (We're hiring)<br/>
+	  Thanks for sending me to various conferences!
+	  </li>
         </ul>
       </p>
     </section>
