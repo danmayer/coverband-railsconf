@@ -54,6 +54,21 @@
     </section>
 
     <section class="slide">
+      <h2>You can't improve if you can't measure, or improve what you don't know</h2>
+      <p>
+        <ul>
+	  <li>We often focus on performance and exception monitoring.</li>
+      	  <li>Some fixate on test code coverage</li>
+	  <li>There is a lot to learn from what the code does in production</li>
+	  <li>Ruby tools for this aren't as good as Java's (and other languages), but
+      are getting better</li>
+          <li>If you know what is happening in production, you also know
+      what is not needed</li>
+        </ul>
+      </p>
+    </section>
+	
+    <section class="slide">
       <h2>How Dead Code Sticks Around</h2>
       <p>
         <ul>
@@ -62,8 +77,12 @@
       	  <li>AB tests, never removing a loser</li>
 	  <li>One offs that are irrelevant over time</li>
 	  <li>Deprecation of old endpoints takes time</li>
-	  <li>There are tests, but it is never used in prod</li>
-        </ul>
+	  <li>Refactoring accidently leaves dead code paths behind</li>
+      	  <li>A developer trying to be 'safe' and creating new methods
+      opposed to altering existing methods that have more than one caller</li>
+	  <li>There are tests, but it is never used in production</li>
+          <li>etc...</li>
+	</ul>
       </p>
     </section>
 
@@ -75,16 +94,45 @@
 	  <li>Stats Instrumentation</li>
 	  <li>Production Code Coverage</li>
 	  <li>Use Logs</li>
-	  <li>At LivingSocial using stats and Coverband, we have
-      removed 10s of thousands of lines app of code.</li>
+	  <li>At LivingSocial using Stats Instrumentation & Coverband, we have
+      removed tens of thousands of lines app of code.<br/>
+	  (removing hundreds of thousands if you include CSS, JS,
+      tests, and helping to deprecate and shut down services.)</li>
         </ul>
       </p>
     </section>
 
     <section class="slide">
       <h2>Using 3rd Party tool (NewRelic)</h2>
-      <p>Easiest way, look at tracking last 7 days, has it been hit</p>
-      <p>Not looking for a specific endpoint, check everything</p>
+      <p>Easiest way, look transactions over last 7 days: (note won't
+      help with specific formats or never hit endpoints)</p>
+      <img src="./images/NR_usage.png" />
+    </section>
+
+    <section class="slide">
+      <h2>Using 3rd Party tool (NewRelic)</h2>
+      <p>LS made a gem to help,
+        <a href="https://github.com/livingsocial/newrelic_route_check">newrelic_route_check</a>
+      compare NR reports to Rails routes.</br>
+	download the `controller_summary.csv`</p>
+      <img src="./images/NR_download.png" />
+      <p>run `bundle exec rake newrelic:compare_with_routes`</p>
+      <pre>
+found 335 uniq new relic controller action hits
+found 562 uniq Rails routes controller action pairs
+exists in new relic, but not in routes: 1
+PagesController#amazon_gift_card
+never accessed in new relic stats: XXX
+Pipeline::DealsController#show
+Pipeline::OnlineRedemptionInstructionController#show
+Pipeline::EmailTemplatesController#show
+SubscribeButtonController#dropdown_for_deal
+SubscribeButtonController#subscribe_to_deal
+...
+AuthorizationRulesController#graph
+AuthorizationRulesController#change
+AuthorizationRulesController#suggest_change
+      </pre>
     </section>
 
     <section class="slide">
@@ -97,7 +145,7 @@
 	  <li>One Off Trackers: usage of code
       branches & other hard to verify code</li>
 	  <li>Production Performance Comparisons: What's faster on
-      real data</li>
+      production data</li>
 	  <li>Translations Usage: How many translation keys are you
       loading in memory & never using</li>
         </ul>
@@ -311,13 +359,35 @@ run ActionController::Dispatcher.new
       <h2>Logs</h2>
       <p>
         <ul>
-	  <li>Based on `set_trace_func`</li>
-      	  <li>It would be better to be based on `Coverage` but there is a bug in Ruby</li>
-	  <li>(Looking for C help, so I can try to patch Ruby)</li>
-	  <li>Performance hit reduced by sampling</li>
-	  <li><a href="https://github.com/danmayer/coverband">github.com/danmayer/coverband</a></li>
+	  <li>Logs need to be searchable, real time is best.
+	  (ElasticSearch/Kibana, Splunk, Hadoop)</li>
+	  <li>All your logs should be in one place 
+	  (cron, nginx access/error, background jobs, rails logs)</li>
+      	  <li>If you have multiple apps that communicate they should
+      be in the same system.</li>
+          <li>Try to standardize log format & some keys / variables
+      across systems</li>
         </ul>
       </p>
+    </section>
+
+    <section class="slide">
+      <h2>Logs: Better with Imprint</h2>
+      <p>Another LS gem
+	<a href="https://github.com/livingsocial/imprint">Imprint</a>
+	 <ul>
+	   <li>Request tracing in logs:<br/>
+	    All Rails.logger calls during a request tagged with a trace_id</li>
+	   <li>Exceptions include trace_id so you can fetch all logs
+      related to a request that caused an exception</li>
+           <li>Background Jobs failures include the trace_id to find
+      the request that queued the job</li>
+           <li>Cross app tracing, have client gems pass a header, and
+      back end APIs will include the same trace_id as the initial
+      front end request</li>
+	 </ul>
+      </p>
+	
     </section>
 
     <section class="slide ls">
